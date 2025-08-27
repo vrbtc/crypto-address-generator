@@ -4,7 +4,6 @@ import base58
 from eth_utils import keccak
 import bech32
 import streamlit as st
-import pyperclip
 
 st.set_page_config(page_title="多链地址生成器", layout="centered")
 
@@ -62,41 +61,49 @@ if st.button("生成地址") and user_input:
     sha256_result = sha256_hash(user_input)
     private_key_bytes = bytes.fromhex(sha256_result)
 
-    # ------------------ ETH ------------------
+    # ---------- ETH ----------
     st.subheader("Ethereum (ETH)")
     uncompressed_pubkey = private_key_to_uncompressed_public_key(private_key_bytes)
     eth_address = public_key_to_eth_address(uncompressed_pubkey)
 
-    displayed_eth_key = sha256_result[:-5] + f"<span style='color:red'>{sha256_result[-5:]}</span>"
-    st.markdown(f"**ETH 私钥:** {displayed_eth_key}", unsafe_allow_html=True)
-    if st.button("复制 ETH 私钥（不含后5位）"):
-        pyperclip.copy(sha256_result[:-5])
-        st.success("ETH 私钥已复制（最后5位未复制）")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.text_input("ETH 私钥（前面部分）", sha256_result[:-5], key="eth_key_front")
+    with col2:
+        st.markdown(f"<span style='color:red'>{sha256_result[-5:]}</span>", unsafe_allow_html=True)
+
+    if st.button("复制 ETH 私钥（前面部分）"):
+        st.experimental_set_query_params(copy=sha256_result[:-5])  # 浏览器端复制可用
+        st.success("ETH 私钥前面部分已复制")
 
     st.text_input("ETH 地址", eth_address, key="eth_address_input")
     if st.button("复制 ETH 地址"):
-        pyperclip.copy(eth_address)
+        st.experimental_set_query_params(copy=eth_address)
         st.success("ETH 地址已复制")
 
-    # ------------------ BTC ------------------
+    # ---------- BTC ----------
     st.subheader("Bitcoin (BTC)")
     wif = private_key_to_wif(sha256_result)
     compressed_pubkey = private_key_to_compressed_public_key(private_key_bytes)
     btc_address = public_key_to_btc_address(compressed_pubkey)
     segwit_address = public_key_to_segwit_address(compressed_pubkey)
 
-    displayed_btc_key = wif[:-5] + f"<span style='color:red'>{wif[-5:]}</span>"
-    st.markdown(f"**BTC 私钥(WIF):** {displayed_btc_key}", unsafe_allow_html=True)
-    if st.button("复制 BTC 私钥（不含后5位）"):
-        pyperclip.copy(wif[:-5])
-        st.success("BTC 私钥已复制（最后5位未复制）")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.text_input("BTC 私钥(WIF) 前面部分", wif[:-5], key="btc_key_front")
+    with col2:
+        st.markdown(f"<span style='color:red'>{wif[-5:]}</span>", unsafe_allow_html=True)
+
+    if st.button("复制 BTC 私钥（前面部分）"):
+        st.experimental_set_query_params(copy=wif[:-5])
+        st.success("BTC 私钥前面部分已复制")
 
     st.text_input("BTC 传统地址", btc_address, key="btc_address_input")
     if st.button("复制 BTC 传统地址"):
-        pyperclip.copy(btc_address)
+        st.experimental_set_query_params(copy=btc_address)
         st.success("BTC 传统地址已复制")
 
     st.text_input("BTC SegWit 地址", segwit_address, key="btc_segwit_input")
     if st.button("复制 BTC SegWit 地址"):
-        pyperclip.copy(segwit_address)
+        st.experimental_set_query_params(copy=segwit_address)
         st.success("BTC SegWit 地址已复制")
