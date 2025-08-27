@@ -72,14 +72,7 @@ if st.button("生成地址") and user_input:
     with col2:
         st.markdown(f"<span style='color:red'>{sha256_result[-5:]}</span>", unsafe_allow_html=True)
 
-    if st.button("复制 ETH 私钥（前面部分）"):
-        st.experimental_set_query_params(copy=sha256_result[:-5])  # 浏览器端复制可用
-        st.success("ETH 私钥前面部分已复制")
-
     st.text_input("ETH 地址", eth_address, key="eth_address_input")
-    if st.button("复制 ETH 地址"):
-        st.experimental_set_query_params(copy=eth_address)
-        st.success("ETH 地址已复制")
 
     # ---------- BTC ----------
     st.subheader("Bitcoin (BTC)")
@@ -94,16 +87,5 @@ if st.button("生成地址") and user_input:
     with col2:
         st.markdown(f"<span style='color:red'>{wif[-5:]}</span>", unsafe_allow_html=True)
 
-    if st.button("复制 BTC 私钥（前面部分）"):
-        st.experimental_set_query_params(copy=wif[:-5])
-        st.success("BTC 私钥前面部分已复制")
-
     st.text_input("BTC 传统地址", btc_address, key="btc_address_input")
-    if st.button("复制 BTC 传统地址"):
-        st.experimental_set_query_params(copy=btc_address)
-        st.success("BTC 传统地址已复制")
-
     st.text_input("BTC SegWit 地址", segwit_address, key="btc_segwit_input")
-    if st.button("复制 BTC SegWit 地址"):
-        st.experimental_set_query_params(copy=segwit_address)
-        st.success("BTC SegWit 地址已复制")
