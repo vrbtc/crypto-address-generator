@@ -1,7 +1,7 @@
 streamlit
 ecdsa
-eth-utils
-pyperclip
-bech32
 base58
+eth-utils
+bech32
+pyperclip
 eth-hash[pycryptodome]
