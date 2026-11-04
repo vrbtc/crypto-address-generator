@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多链地址生成器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #0e1117; color: #fafafa; margin: 0; padding: 0; display: flex; justify-content: center; }
+  .container { width: 100%; max-width: 560px; padding: 24px 20px 60px; }
+  h1 { font-size: 1.7rem; text-align: center; }
+  .subtitle { text-align: center; color: #9ca3af; margin-bottom: 24px; font-size: 0.9rem; }
+  label { display: block; margin-bottom: 6px; font-weight: bold; font-size: 0.92rem; }
+  input[type=text], input[type=password] { width: 100%; padding: 10px 12px; border: 1px solid #3b4252; border-radius: 6px; background: #161b22; color: #fafafa; font-size: 1rem; }
+  input:focus { outline: none; border-color: #58a6ff; }
+  .btn { display: inline-block; width: 100%; padding: 11px; margin-top: 12px; background: #2ea043; color: #fff; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; }
+  .btn:hover { background: #3fb950; }
+  .btn-copy { width: auto; padding: 6px 14px; background: #21262d; border: 1px solid #3b4252; font-size: 0.82rem; font-weight: normal; margin-top: 0; }
+  .btn-copy:hover { background: #30363d; }
+  .section { margin-top: 22px; }
+  .section h2 { font-size: 1.15rem; border-bottom: 1px solid #30363d; padding-bottom: 6px; }
+  .pk-container { background: #161b22; padding: 10px 12px; border-radius: 6px; font-family: Consolas, monospace; word-break: break-all; margin: 8px 0; font-size: 0.92rem; }
+  .pk-tail { color: #f85149; font-weight: bold; }
+  .addr-box { background: #161b22; padding: 10px 12px; border-radius: 6px; font-family: Consolas, monospace; word-break: break-all; margin: 8px 0; font-size: 0.92rem; color: #58a6ff; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .save-status { display: none; margin-top: 18px; padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; }
+  .settings { margin-top: 40px; border-top: 1px solid #30363d; padding-top: 18px; }
+  .settings summary { cursor: pointer; color: #9ca3af; font-size: 0.9rem; }
+  .hint { color: #6e7681; font-size: 0.78rem; margin-top: 4px; }
+  .footer { text-align: center; color: #484f58; font-size: 0.75rem; margin-top: 50px; }
+  #status { margin-top: 16px; color: #9ca3af; text-align: center; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔑 多链地址生成器</h1>
+  <div class="subtitle">输入任意文本生成 ETH / BTC 地址及私钥 · 全部在浏览器本地运算</div>
+
+  <label>请输入任意文本（密码、短语等）</label>
+  <input type="text" id="userInput" placeholder="例如：20261105">
+  <button class="btn" onclick="generateWallet()">生成地址并自动归档</button>
+  <div id="status"></div>
+
+  <div id="result" style="display:none">
+    <!-- ETH -->
+    <div class="section">
+      <h2>Ethereum (ETH)</h2>
+      <label>ETH 私钥（尾 5 位标红，分两次复制）</label>
+      <div class="pk-container" id="ethKeyDisplay"></div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('ethKeyMain')">复制 ETH 私钥（不含尾5位）</button></div>
+      <label>ETH 地址</label>
+      <div class="addr-box" id="ethAddr"></div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('ethAddr')">复制 ETH 地址</button></div>
+    </div>
+
+    <!-- BTC -->
+    <div class="section">
+      <h2>Bitcoin (BTC)</h2>
+      <label>BTC 私钥 WIF（尾 5 位标红，分两次复制）</label>
+      <div class="pk-container" id="btcKeyDisplay"></div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcKeyMain')">复制 BTC 私钥（不含尾5位）</button></div>
+      <label>BTC 传统地址 (Legacy)</label>
+      <div class="addr-box" id="btcLegacy"></div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcLegacy')">复制 BTC 传统地址</button></div>
+      <label>BTC SegWit 地址</label>
+      <div class="addr-box" id="btcSegwit"></div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcSegwit')">复制 BTC SegWit 地址</button></div>
+    </div>
+
+    <div id="saveStatus" class="save-status"></div>
+  </div>
+
+  <!-- GitHub 归档设置 -->
+  <details class="settings">
+    <summary>⚙️ 私有仓库归档设置（仅首次需要填写）</summary>
+    <div style="margin-top:12px">
+      <label>GitHub 用户名</label>
+      <input type="text" id="ghUser" placeholder="vrbtc">
+      <label style="margin-top:10px">Fine-grained Personal Access Token</label>
+      <input type="password" id="ghToken" placeholder="仅限 wallet-record 仓库 Contents 写权限">
+      <div class="hint">Token 只保存在你自己的浏览器（localStorage），不会上传到任何服务器。他人访问本页面看不到、也写不进你的仓库。</div>
+      <button class="btn" onclick="saveSettings()">保存设置</button>
+      <div class="hint" id="settingsHint"></div>
+    </div>
+  </details>
+
+  <div class="footer">计算全程在本地浏览器完成 · 原文永不外传 · 归档仅记录原文前4位+后4位及地址</div>
+</div>
+
+<script>
+// ================= Bech32 (BIP173 参考实现) =================
+const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+const GENERATOR = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+function polymod(values) {
+  let chk = 1;
+  for (let p = 0; p < values.length; ++p) {
+    const top = chk >> 25;
+    chk = (chk & 0x1ffffff) << 5 ^ values[p];
+    for (let i = 0; i < 5; ++i) if ((top >> i) & 1) chk ^= GENERATOR[i];
+  }
+  return chk;
+}
+function hrpExpand(hrp) {
+  const ret = [];
+  for (let p = 0; p < hrp.length; ++p) ret.push(hrp.charCodeAt(p) >> 5);
+  ret.push(0);
+  for (let p = 0; p < hrp.length; ++p) ret.push(hrp.charCodeAt(p) & 31);
+  return ret;
+}
+function verifyChecksum(hrp, data) { return polymod(hrpExpand(hrp).concat(data)) === 1; }
+function createChecksum(hrp, data) {
+  const values = hrpExpand(hrp).concat(data).concat([0, 0, 0, 0, 0, 0]);
+  const mod = polymod(values) ^ 1;
+  const ret = [];
+  for (let p = 0; p < 6; ++p) ret.push((mod >> 5 * (5 - p)) & 31);
+  return ret;
+}
+function bech32Encode(hrp, data) {
+  const combined = data.concat(createChecksum(hrp, data));
+  let ret = hrp + '1';
+  for (let p = 0; p < combined.length; ++p) ret += CHARSET.charAt(combined[p]);
+  return ret;
+}
+function convertBits(data, frombits, tobits, pad) {
+  let acc = 0, bits = 0;
+  const ret = [], maxv = (1 << tobits) - 1;
+  for (let p = 0; p < data.length; ++p) {
+    const value = data[p];
+    if (value < 0 || (value >> frombits) !== 0) return null;
+    acc = (acc << frombits) | value;
+    bits += frombits;
+    while (bits >= tobits) {
+      bits -= tobits;
+      ret.push((acc >> bits) & maxv);
+    }
+  }
+  if (pad) {
+    if (bits) ret.push((acc << (tobits - bits)) & maxv);
+  } else if (bits >= frombits || ((acc << (tobits - bits)) & maxv)) return null;
+  return ret;
+}
+function segwitAddrEncode(hrp, witnessVersion, witnessProgram) {
+  const data = [witnessVersion].concat(convertBits(witnessProgram, 8, 5, true));
+  return bech32Encode(hrp, data);
+}
+
+// ================= 生成逻辑 =================
+async function generateWallet() {
+  const rawInput = document.getElementById('userInput').value;
+  if (!rawInput) { alert('请输入文本！'); return; }
+
+  try {
+    // 1. SHA-256(UTF-8(输入)) 作为私钥
+    const utf8Bytes = new TextEncoder().encode(rawInput);
+    const hashBuf = await crypto.subtle.digest('SHA-256', utf8Bytes);
+    const hashHex = '0x' + Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const privKey = hashHex; // 32 字节
+
+    // 2. ETH 地址 (ethers, EIP-55 校验和格式)
+    const wallet = new ethers.Wallet(privKey);
+    const ethAddr = wallet.address;
+
+    // 3. BTC Legacy (压缩公钥 → Hash160 → Base58Check)
+    const pubKeyC = ethers.utils.computePublicKey(privKey, true); // 33 字节压缩公钥
+    const hash160 = ethers.utils.ripemd160(ethers.utils.sha256(pubKeyC));
+    const payload = '00' + hash160.substring(2);
+    const checksum = ethers.utils.sha256(ethers.utils.sha256('0x' + payload)).substring(2, 10);
+    const btcLegacy = ethers.utils.base58.encode('0x' + payload + checksum);
+
+    // 4. BTC SegWit (P2WPKH, bech32)
+    const progHex = hash160.substring(2);
+    const progBytes = new Uint8Array(progHex.match(/.{2}/g).map(h => parseInt(h, 16)));
+    const btcSegwit = segwitAddrEncode('bc', 0, progBytes);
+
+    // 5. BTC WIF 私钥 (压缩格式: 0x80 + key + 0x01)
+    const wifPayload = '80' + privKey.substring(2) + '01';
+    const wifChecksum = ethers.utils.sha256(ethers.utils.sha256('0x' + wifPayload)).substring(2, 10);
+    const wif = ethers.utils.base58.encode('0x' + wifPayload + wifChecksum);
+
+    // 展示私钥（尾 5 位标红分割）
+    showSplitKey('ethKeyDisplay', 'ethKeyMain', hashHex.substring(2));
+    showSplitKey('btcKeyDisplay', 'btcKeyMain', wif);
+    document.getElementById('ethAddr').textContent = ethAddr;
+    document.getElementById('btcLegacy').textContent = btcLegacy;
+    document.getElementById('btcSegwit').textContent = btcSegwit;
+    document.getElementById('result').style.display = 'block';
+    document.getElementById('status').textContent = '';
+
+    // 自动归档（脱敏：原文前4位 + 后4位，无任何私钥）
+    await archive(rawInput, ethAddr, btcLegacy, btcSegwit);
+  } catch (e) {
+    document.getElementById('status').textContent = '计算出错：' + e.message;
+  }
+}
+
+function showSplitKey(displayId, mainSpanId, fullKey) {
+  const main = fullKey.slice(0, -5), tail = fullKey.slice(-5);
+  document.getElementById(displayId).innerHTML =
+    `<span id="${mainSpanId}">${main}</span><span class="pk-tail">${tail}</span>`;
+}
+
+async function copyText(id) {
+  const text = document.getElementById(id).textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    flashStatus('✓ 已复制（不含尾 5 位）', '#238636');
+  } catch (e) {
+    // 兼容非 HTTPS/旧浏览器
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    flashStatus('✓ 已复制（不含尾 5 位）', '#238636');
+  }
+}
+
+function flashStatus(msg, color) {
+  const s = document.getElementById('saveStatus');
+  s.style.display = 'block';
+  s.style.backgroundColor = color;
+  s.textContent = msg;
+}
+
+// ================= GitHub 私有仓库归档 =================
+const ARCHIVE_REPO = 'wallet-record';
+const ARCHIVE_FILE = 'records.jsonl';
+
+function saveSettings() {
+  const u = document.getElementById('ghUser').value.trim();
+  const t = document.getElementById('ghToken').value.trim();
+  if (!u || !t) { document.getElementById('settingsHint').textContent = '用户名和 Token 不能为空'; return; }
+  localStorage.setItem('gh_user', u);
+  localStorage.setItem('gh_token', t);
+  document.getElementById('settingsHint').textContent = '✓ 已保存到本地浏览器';
+}
+
+async function archive(rawInput, ethAddr, btcLegacy, btcSegwit) {
+  const user = localStorage.getItem('gh_user');
+  const token = localStorage.getItem('gh_token');
+  const s = document.getElementById('saveStatus');
+  s.style.display = 'block';
+
+  if (!user || !token) {
+    s.style.backgroundColor = '#da3633';
+    s.textContent = '地址已生成。未配置归档 Token，点开底部「归档设置」填写后重新生成即可归档';
+    return;
+  }
+
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const record = {
+    time: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
+    input_head: rawInput.substring(0, 4),
+    input_tail: rawInput.length > 4 ? rawInput.slice(-4) : '',
+    eth: ethAddr,
+    btc_legacy: btcLegacy,
+    btc_segwit: btcSegwit
+  };
+
+  s.style.backgroundColor = '#9e6a03';
+  s.textContent = '正在归档到私有仓库 ' + ARCHIVE_REPO + ' ...';
+
+  try {
+    // 读取现有记录文件
+    const getUrl = `https://api.github.com/repos/${user}/${ARCHIVE_REPO}/contents/${ARCHIVE_FILE}`;
+    let existing = '', sha = null;
+    const getRes = await fetch(getUrl, {
+      headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' }
+    });
+    if (getRes.status === 200) {
+      const j = await getRes.json();
+      sha = j.sha;
+      existing = decodeURIComponent(escape(atob(j.content.replace(/\n/g, ''))));
+    } else if (getRes.status !== 404) {
+      throw new Error('读取归档失败: HTTP ' + getRes.status);
+    }
+
+    // 追加一行并写回
+    existing += JSON.stringify(record) + '\n';
+    const putRes = await fetch(getUrl, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
+      body: JSON.stringify({
+        message: `归档 ${record.time} (${record.input_head}...)`,
+        content: btoa(unescape(encodeURIComponent(existing))),
+        sha: sha
+      })
+    });
+    if (!putRes.ok) throw new Error('写入归档失败: HTTP ' + putRes.status);
+    flashStatus('✓ 已安全归档到私有仓库 wallet-record', '#238636');
+  } catch (e) {
+    s.style.backgroundColor = '#da3633';
+    s.textContent = '✗ 归档失败: ' + e.message + '（地址已正常生成）';
+  }
+}
+
+// 恢复已保存的设置
+(function() {
+  const u = localStorage.getItem('gh_user'), t = localStorage.getItem('gh_token');
+  if (u) document.getElementById('ghUser').value = u;
+  if (t) {
+    document.getElementById('ghToken').value = t;
+    document.getElementById('settingsHint').textContent = '✓ 已从本地恢复设置';
+  }
+})();
+</script>
+</body>
+</html>
