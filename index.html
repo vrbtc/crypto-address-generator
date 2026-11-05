@@ -29,6 +29,13 @@
   .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .save-status { display: none; margin-top: 18px; padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; }
   .hint { color: #6e7681; font-size: 0.78rem; margin-top: 4px; }
+  .edu { color: #b0b8c1; font-size: 0.86rem; line-height: 1.75; }
+  .edu h2 { font-size: 1.05rem; }
+  .edu h3 { font-size: 0.92rem; color: #e6edf3; margin: 18px 0 6px; }
+  .edu b { color: #e6edf3; }
+  .edu ol, .edu ul { padding-left: 20px; margin: 8px 0; }
+  .edu li { margin: 6px 0; }
+  .edu p { margin: 8px 0; }
   .footer { text-align: center; color: #484f58; font-size: 0.75rem; margin-top: 50px; }
   #status { margin-top: 16px; color: #9ca3af; text-align: center; min-height: 1.2em; }
 </style>
@@ -40,7 +47,7 @@
 
   <label>请输入任意文本（密码、短语等）</label>
   <input type="text" id="userInput" placeholder="例如：20261105">
-  <button class="btn" onclick="generateWallet()">生成地址并自动归档</button>
+  <button class="btn" onclick="generateWallet()">加密运算后生成地址</button>
   <div id="status"></div>
 
   <div id="result" style="display:none">
@@ -84,8 +91,33 @@
 
   <!-- 归档经 Cloudflare Worker 代理完成，页面不保存任何令牌 -->
 
+  <!-- 密码学原理科普 -->
+  <div class="section edu">
+    <h2>📚 密码学原理科普</h2>
+
+    <h3>地址是怎么算出来的</h3>
+    <p>整个流程是一条纯数学推导链，每一步都是公开的密码学算法：</p>
+    <ol>
+      <li><b>文本 → SHA-256</b>：你输入的文本经过 SHA-256 哈希运算，得到一个 256 位的二进制数（页面上显示的 64 位十六进制字符串）。<b>这个数就是私钥本身</b>。</li>
+      <li><b>私钥 → 公钥</b>：私钥在 secp256k1 椭圆曲线上做乘法，得到公钥。正向计算瞬间完成，反向从公钥推私钥在数学上不可行（椭圆曲线离散对数难题）。</li>
+      <li><b>公钥 → ETH 地址</b>：对公钥做 Keccak-256 哈希，取最后 20 字节，就是 0x 开头的以太坊地址。</li>
+      <li><b>公钥 → BTC 地址</b>：对公钥做 SHA-256 再做 RIPEMD-160 双重哈希，加上校验位后用 Base58 编码得到传统地址（1 开头）；SegWit 地址（bc1 开头）则用 Bech32 编码，同一条公钥可以推出两种格式的比特币地址。</li>
+    </ol>
+
+    <h3>为什么这是安全的</h3>
+    <ul>
+      <li><b>单向性（不可逆）</b>：SHA-256 是哈希运算而不是加密——没有密钥、没有解密过程。给定哈希值反推原文，唯一办法是把所有可能的文本都算一遍（暴力穷举）。</li>
+      <li><b>天文数字的搜索空间</b>：256 位意味着 2²⁵⁶ ≈ 10⁷⁷ 种可能，与可观测宇宙的原子数量级相当。现有全部计算机算到宇宙热寂也算不完。</li>
+      <li><b>雪崩效应</b>：原文改动哪怕一个字母，哈希值会面目全非；同时相同原文永远得到相同地址——这就是"用固定口令确定性生成地址"的原理。</li>
+      <li><b>全程本地运算</b>：哈希、椭圆曲线、地址编码全部在你浏览器里完成，输入的原文和算出的私钥不经过网络发送到任何服务器。</li>
+    </ul>
+
+    <h3>安全性取决于你输入的文本</h3>
+    <p>数学上最薄弱的一环不是算法，是<b>原文本身</b>。"20261105" 这类 8 位纯数字只有 10⁸ 种可能，攻击者拿到你的地址后可以离线把所有短数字组合各算一遍地址来比对，几分钟就能穷举完。<b>请使用足够长、足够杂乱的文本</b>（长句子 + 数字 + 符号，例如一句只有你自己知道的完整短语），长度和杂乱度直接决定地址的安全强度。</p>
+  </div>
+
   <div class="footer">
-    计算全程在本地浏览器完成 · 原文永不外传 · 归档由 Worker 写入私有仓库，仅记录时间、地址与长原文的脱敏片段
+    计算全程在本地浏览器完成 · 原文永不外传
   </div>
 </div>
 
