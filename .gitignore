@@ -20,3 +20,6 @@ Thumbs.db
 .dev.vars
 .wrangler/
 node_modules/
+
+# WorkBuddy 本地工作记录（不进公开仓库）
+.workbuddy/
