@@ -21,6 +21,9 @@
   .section { margin-top: 22px; }
   .section h2 { font-size: 1.15rem; border-bottom: 1px solid #30363d; padding-bottom: 6px; }
   .pk-container { background: #161b22; padding: 10px 12px; border-radius: 6px; font-family: Consolas, monospace; word-break: break-all; margin: 8px 0; font-size: 0.92rem; }
+  .pk-gap { margin: 10px 0; padding: 7px 0; border-top: 1px dashed #30363d; border-bottom: 1px dashed #30363d; text-align: center; color: #8b949e; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 0.78rem; }
+  .pk-tail-row { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
+  .pk-tail-label { color: #8b949e; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 0.78rem; white-space: nowrap; }
   .pk-tail { color: #f85149; font-weight: bold; }
   .addr-box { background: #161b22; padding: 10px 12px; border-radius: 6px; font-family: Consolas, monospace; word-break: break-all; margin: 8px 0; font-size: 0.92rem; color: #58a6ff; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -44,9 +47,14 @@
     <!-- ETH -->
     <div class="section">
       <h2>Ethereum (ETH)</h2>
-      <label>ETH 私钥（尾 5 位标红，分两次复制）</label>
-      <div class="pk-container" id="ethKeyDisplay"></div>
-      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('ethKeyMain')">复制 ETH 私钥（不含尾5位）</button></div>
+      <label>ETH 私钥（主段与末 5 位已隔开，请勿整段复制）</label>
+      <div class="pk-container" id="ethKeyDisplay">
+        <div class="pk-main" id="ethKeyMain"></div>
+        <div class="pk-gap">↓ 以下 5 位与主段隔离，请单独抄录 ↓</div>
+        <div class="pk-tail-row"><span class="pk-tail-label">末 5 位（单独抄录）</span><span class="pk-tail" id="ethKeyTail"></span></div>
+      </div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('ethKeyMain')">复制 ETH 私钥主段（不含末5位）</button></div>
+      <div class="hint">完整私钥 = 主段 + 末 5 位。两段在页面上不相邻；整段框选复制会一并带上分隔说明文字，不会得到可直接使用的私钥。</div>
       <label>ETH 地址</label>
       <div class="addr-box" id="ethAddr"></div>
       <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('ethAddr')">复制 ETH 地址</button></div>
@@ -55,9 +63,14 @@
     <!-- BTC -->
     <div class="section">
       <h2>Bitcoin (BTC)</h2>
-      <label>BTC 私钥 WIF（尾 5 位标红，分两次复制）</label>
-      <div class="pk-container" id="btcKeyDisplay"></div>
-      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcKeyMain')">复制 BTC 私钥（不含尾5位）</button></div>
+      <label>BTC 私钥 WIF（主段与末 5 位已隔开，请勿整段复制）</label>
+      <div class="pk-container" id="btcKeyDisplay">
+        <div class="pk-main" id="btcKeyMain"></div>
+        <div class="pk-gap">↓ 以下 5 位与主段隔离，请单独抄录 ↓</div>
+        <div class="pk-tail-row"><span class="pk-tail-label">末 5 位（单独抄录）</span><span class="pk-tail" id="btcKeyTail"></span></div>
+      </div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcKeyMain')">复制 BTC 私钥主段（不含末5位）</button></div>
+      <div class="hint">WIF 主段与末 5 位同样隔离，整段框选复制不会得到完整 WIF。</div>
       <label>BTC 传统地址 (Legacy)</label>
       <div class="addr-box" id="btcLegacy"></div>
       <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcLegacy')">复制 BTC 传统地址</button></div>
@@ -164,9 +177,9 @@ async function generateWallet() {
     const wifChecksum = ethers.utils.sha256(ethers.utils.sha256('0x' + wifPayload)).substring(2, 10);
     const wif = ethers.utils.base58.encode('0x' + wifPayload + wifChecksum);
 
-    // 展示私钥（尾 5 位标红分割）
-    showSplitKey('ethKeyDisplay', 'ethKeyMain', hashHex.substring(2));
-    showSplitKey('btcKeyDisplay', 'btcKeyMain', wif);
+    // 展示私钥：主段与末 5 位分别写入互相隔离的元素，避免整段复制带走完整私钥
+    showSplitKey('ethKeyMain', 'ethKeyTail', hashHex.substring(2));
+    showSplitKey('btcKeyMain', 'btcKeyTail', wif);
     document.getElementById('ethAddr').textContent = ethAddr;
     document.getElementById('btcLegacy').textContent = btcLegacy;
     document.getElementById('btcSegwit').textContent = btcSegwit;
@@ -180,10 +193,20 @@ async function generateWallet() {
   }
 }
 
-function showSplitKey(displayId, mainSpanId, fullKey) {
-  const main = fullKey.slice(0, -5), tail = fullKey.slice(-5);
-  document.getElementById(displayId).innerHTML =
-    `<span id="${mainSpanId}">${main}</span><span class="pk-tail">${tail}</span>`;
+// 私钥拆分规则：末 5 位单独存放。纯函数，供单测直接提取线上页面代码验证。
+// SPLIT_FN_START
+function splitKey(fullKey) {
+  const TAIL_LEN = 5;
+  if (typeof fullKey !== 'string') return { main: '', tail: '' };
+  if (fullKey.length <= TAIL_LEN) return { main: fullKey, tail: '' };
+  return { main: fullKey.slice(0, -TAIL_LEN), tail: fullKey.slice(-TAIL_LEN) };
+}
+// SPLIT_FN_END
+
+function showSplitKey(mainId, tailId, fullKey) {
+  const parts = splitKey(fullKey);
+  document.getElementById(mainId).textContent = parts.main;
+  document.getElementById(tailId).textContent = parts.tail;
 }
 
 async function copyText(id) {
