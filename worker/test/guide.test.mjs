@@ -18,6 +18,12 @@ test('说明页给出根路径跳转与健康检查入口', () => {
   assert.ok(GUIDE_HTML.includes('/health'));
 });
 
+test('说明页给出可直接打开的记录页入口', () => {
+  assert.ok(GUIDE_HTML.includes('href="/records"'));
+  assert.ok(GUIDE_HTML.includes('https://s.320212.xyz/records'));
+  assert.ok(GUIDE_HTML.includes('无需调用接口'));
+});
+
 test('说明页给出可直接复制的 curl POST 示例，且不含会被校验拒绝的占位符', () => {
   assert.ok(GUIDE_HTML.includes('curl -X POST https://s.320212.xyz/archive'));
   assert.ok(GUIDE_HTML.includes('Content-Type: application/json'));

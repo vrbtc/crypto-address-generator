@@ -1,8 +1,14 @@
 import { validateRecord, checkRateLimit } from './validate.js';
 import { bytesToBase64, base64ToBytes, encodeUtf8, decodeUtf8 } from './encoding.js';
 import { PAGE_URL, GUIDE_HTML } from './guide.js';
+import {
+  VIEWER_COOKIE, RECORDS_PATH, VIEWER_TOKEN_SUFFIX,
+  safeEqual, parseCookie, parseJsonl,
+  renderRecordsHtml, renderLoginHtml, renderErrorHtml
+} from './records.js';
 
 const MAX_BODY_BYTES = 2048;
+const VIEWER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 function allowedOrigins(env) {
   return (env.ALLOWED_ORIGIN || '')
@@ -55,14 +61,111 @@ async function checkLimit(request, env) {
   return { allowed: false, retryAfter: result.retryAfter };
 }
 
-async function appendRecord(env, record) {
-  const url = `https://api.github.com/repos/${env.GITHUB_USER}/${env.ARCHIVE_REPO}/contents/${env.ARCHIVE_FILE}`;
-  const headers = {
+function ghHeaders(env) {
+  return {
     'Authorization': 'Bearer ' + env.GITHUB_TOKEN,
     'Accept': 'application/vnd.github+json',
     'User-Agent': 'wallet-archive-worker',
     'X-GitHub-Api-Version': '2022-11-28'
   };
+}
+
+function archiveUrl(env) {
+  return `https://api.github.com/repos/${env.GITHUB_USER}/${env.ARCHIVE_REPO}/contents/${env.ARCHIVE_FILE}`;
+}
+
+function htmlResponse(body, status, extra = {}) {
+  return new Response(body, {
+    status,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      ...extra
+    }
+  });
+}
+
+// Cookie 里存的是密钥的派生值，不直接携带密钥本身。
+async function viewerToken(secret) {
+  const bytes = await crypto.subtle.digest('SHA-256', encodeUtf8(secret + VIEWER_TOKEN_SUFFIX));
+  return Array.from(new Uint8Array(bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function viewerCookie(value, maxAge) {
+  return `${VIEWER_COOKIE}=${value}; Path=${RECORDS_PATH}; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`;
+}
+
+async function readRecords(env) {
+  // 加时间戳参数绕开 GitHub 侧缓存，保证刷新就能看到刚归档的记录。
+  const res = await fetch(`${archiveUrl(env)}?t=${Date.now()}`, {
+    headers: { ...ghHeaders(env), 'Cache-Control': 'no-cache' }
+  });
+  if (res.status === 404) return { ok: true, text: '' };
+  if (!res.ok) return { ok: false, status: res.status };
+  const j = await res.json();
+  if (!j.content) return { ok: false, status: 'empty-content' };
+  return { ok: true, text: decodeUtf8(base64ToBytes(j.content)) };
+}
+
+async function handleRecords(request, env, url) {
+  if (!env.VIEWER_KEY) {
+    return htmlResponse(renderLoginHtml('服务端尚未配置查看密钥，页面当前不可用。'), 503);
+  }
+
+  if (url.searchParams.get('logout') === '1') {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': RECORDS_PATH,
+        'Set-Cookie': viewerCookie('', 0),
+        'Cache-Control': 'no-store',
+        'Referrer-Policy': 'no-referrer'
+      }
+    });
+  }
+
+  const key = url.searchParams.get('k');
+  if (key && safeEqual(key, env.VIEWER_KEY)) {
+    // 兑换成功后立刻 302 去掉查询串，密钥不留在地址栏、不随跳转传播。
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': RECORDS_PATH,
+        'Set-Cookie': viewerCookie(await viewerToken(env.VIEWER_KEY), VIEWER_COOKIE_MAX_AGE),
+        'Cache-Control': 'no-store',
+        'Referrer-Policy': 'no-referrer'
+      }
+    });
+  }
+
+  const cookie = parseCookie(request.headers.get('Cookie'), VIEWER_COOKIE);
+  const expected = await viewerToken(env.VIEWER_KEY);
+  if (!cookie || !safeEqual(cookie, expected)) {
+    return htmlResponse(renderLoginHtml(), 401);
+  }
+
+  let result;
+  try {
+    result = await readRecords(env);
+  } catch (e) {
+    return htmlResponse(renderErrorHtml('network-error'), 502);
+  }
+  if (!result.ok) return htmlResponse(renderErrorHtml(result.status), 502);
+
+  const parsed = parseJsonl(result.text);
+  const rows = parsed.records.slice().reverse();
+  return htmlResponse(renderRecordsHtml(rows, {
+    skipped: parsed.skipped,
+    source: `${env.GITHUB_USER}/${env.ARCHIVE_REPO} / ${env.ARCHIVE_FILE}`
+  }), 200);
+}
+
+async function appendRecord(env, record) {
+  const url = archiveUrl(env);
+  const headers = ghHeaders(env);
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const getRes = await fetch(url, { headers });
@@ -99,6 +202,13 @@ async function appendRecord(env, record) {
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin');
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // /records 自带查看密钥授权，不受归档接口来源白名单约束（浏览器导航可能带任意 Origin）。
+    if ((request.method === 'GET' || request.method === 'HEAD') && path === RECORDS_PATH) {
+      return handleRecords(request, env, url);
+    }
 
     if (!isOriginAllowed(origin, env)) {
       return response({ ok: false, error: '来源未被允许' }, 403, origin, env);
@@ -106,8 +216,6 @@ export default {
     if (request.method === 'OPTIONS') {
       return response({ ok: true }, 204, origin, env);
     }
-
-    const path = new URL(request.url).pathname;
     if (request.method === 'GET' && path === '/health') {
       return response({
         ok: true,
