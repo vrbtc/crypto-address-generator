@@ -1,0 +1,20 @@
+name = "wallet-archive"
+main = "src/index.js"
+compatibility_date = "2026-11-05"
+workers_dev = true
+
+# account_id 不写入公开仓库，部署时通过 CLOUDFLARE_ACCOUNT_ID 环境变量传入。
+# GITHUB_TOKEN 通过 wrangler secret put 写入，不进代码、不进仓库。
+
+[vars]
+GITHUB_USER = "vrbtc"
+ARCHIVE_REPO = "wallet-record"
+ARCHIVE_FILE = "records.jsonl"
+# 允许的浏览器来源：线上 Pages、本地 file:// 打开（Origin 为 null）。
+ALLOWED_ORIGIN = "https://vrbtc.github.io,null"
+RATE_LIMIT_MAX = "10"
+RATE_LIMIT_WINDOW_SEC = "60"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "afbd6d9f5d29461e9eddd905823e124f"

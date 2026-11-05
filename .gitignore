@@ -11,6 +11,12 @@ dist/
 # IDE
 .idea/
 
-# 系统文件
+# 系统文件 / 内部文档
 Thumbs.db
 .DS_Store
+交接文档.md
+
+# Cloudflare Worker（本地密钥与构建产物不进仓库）
+.dev.vars
+.wrangler/
+node_modules/

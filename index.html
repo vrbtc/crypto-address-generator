@@ -25,8 +25,6 @@
   .addr-box { background: #161b22; padding: 10px 12px; border-radius: 6px; font-family: Consolas, monospace; word-break: break-all; margin: 8px 0; font-size: 0.92rem; color: #58a6ff; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .save-status { display: none; margin-top: 18px; padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; }
-  .settings { margin-top: 40px; border-top: 1px solid #30363d; padding-top: 18px; }
-  .settings summary { cursor: pointer; color: #9ca3af; font-size: 0.9rem; }
   .hint { color: #6e7681; font-size: 0.78rem; margin-top: 4px; }
   .footer { text-align: center; color: #484f58; font-size: 0.75rem; margin-top: 50px; }
   #status { margin-top: 16px; color: #9ca3af; text-align: center; min-height: 1.2em; }
@@ -71,21 +69,9 @@
     <div id="saveStatus" class="save-status"></div>
   </div>
 
-  <!-- GitHub 归档设置 -->
-  <details class="settings">
-    <summary>⚙️ 私有仓库归档设置（仅首次需要填写）</summary>
-    <div style="margin-top:12px">
-      <label>GitHub 用户名</label>
-      <input type="text" id="ghUser" placeholder="vrbtc">
-      <label style="margin-top:10px">Fine-grained Personal Access Token</label>
-      <input type="password" id="ghToken" placeholder="仅限 wallet-record 仓库 Contents 写权限">
-      <div class="hint">Token 只保存在你自己的浏览器（localStorage），不会上传到任何服务器。他人访问本页面看不到、也写不进你的仓库。</div>
-      <button class="btn" onclick="saveSettings()">保存设置</button>
-      <div class="hint" id="settingsHint"></div>
-    </div>
-  </details>
+  <!-- 归档经 Cloudflare Worker 代理完成，页面不保存任何令牌 -->
 
-  <div class="footer">计算全程在本地浏览器完成 · 原文永不外传 · 归档仅记录原文前4位+后4位及地址</div>
+  <div class="footer">计算全程在本地浏览器完成 · 原文永不外传 · 归档由 Worker 写入私有仓库，仅记录原文前4位+后4位及地址</div>
 </div>
 
 <script>
@@ -221,30 +207,13 @@ function flashStatus(msg, color) {
   s.textContent = msg;
 }
 
-// ================= GitHub 私有仓库归档 =================
-const ARCHIVE_REPO = 'wallet-record';
-const ARCHIVE_FILE = 'records.jsonl';
-
-function saveSettings() {
-  const u = document.getElementById('ghUser').value.trim();
-  const t = document.getElementById('ghToken').value.trim();
-  if (!u || !t) { document.getElementById('settingsHint').textContent = '用户名和 Token 不能为空'; return; }
-  localStorage.setItem('gh_user', u);
-  localStorage.setItem('gh_token', t);
-  document.getElementById('settingsHint').textContent = '✓ 已保存到本地浏览器';
-}
+// ================= 归档（Cloudflare Worker 代理写入私有仓库） =================
+// 页面不再持有任何 GitHub 令牌；令牌只存在 Worker 的 Secret 中。
+const ARCHIVE_ENDPOINT = 'https://wallet-archive.vdefieth.workers.dev/archive';
 
 async function archive(rawInput, ethAddr, btcLegacy, btcSegwit) {
-  const user = localStorage.getItem('gh_user');
-  const token = localStorage.getItem('gh_token');
   const s = document.getElementById('saveStatus');
   s.style.display = 'block';
-
-  if (!user || !token) {
-    s.style.backgroundColor = '#da3633';
-    s.textContent = '地址已生成。未配置归档 Token，点开底部「归档设置」填写后重新生成即可归档';
-    return;
-  }
 
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
@@ -258,51 +227,22 @@ async function archive(rawInput, ethAddr, btcLegacy, btcSegwit) {
   };
 
   s.style.backgroundColor = '#9e6a03';
-  s.textContent = '正在归档到私有仓库 ' + ARCHIVE_REPO + ' ...';
+  s.textContent = '正在归档到私有仓库 wallet-record ...';
 
   try {
-    // 读取现有记录文件
-    const getUrl = `https://api.github.com/repos/${user}/${ARCHIVE_REPO}/contents/${ARCHIVE_FILE}`;
-    let existing = '', sha = null;
-    const getRes = await fetch(getUrl, {
-      headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' }
+    const res = await fetch(ARCHIVE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record)
     });
-    if (getRes.status === 200) {
-      const j = await getRes.json();
-      sha = j.sha;
-      existing = decodeURIComponent(escape(atob(j.content.replace(/\n/g, ''))));
-    } else if (getRes.status !== 404) {
-      throw new Error('读取归档失败: HTTP ' + getRes.status);
-    }
-
-    // 追加一行并写回
-    existing += JSON.stringify(record) + '\n';
-    const putRes = await fetch(getUrl, {
-      method: 'PUT',
-      headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' },
-      body: JSON.stringify({
-        message: `归档 ${record.time} (${record.input_head}...)`,
-        content: btoa(unescape(encodeURIComponent(existing))),
-        sha: sha
-      })
-    });
-    if (!putRes.ok) throw new Error('写入归档失败: HTTP ' + putRes.status);
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
     flashStatus('✓ 已安全归档到私有仓库 wallet-record', '#238636');
   } catch (e) {
     s.style.backgroundColor = '#da3633';
     s.textContent = '✗ 归档失败: ' + e.message + '（地址已正常生成）';
   }
 }
-
-// 恢复已保存的设置
-(function() {
-  const u = localStorage.getItem('gh_user'), t = localStorage.getItem('gh_token');
-  if (u) document.getElementById('ghUser').value = u;
-  if (t) {
-    document.getElementById('ghToken').value = t;
-    document.getElementById('settingsHint').textContent = '✓ 已从本地恢复设置';
-  }
-})();
 </script>
 </body>
 </html>
