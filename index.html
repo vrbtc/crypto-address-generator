@@ -71,7 +71,7 @@
 
   <!-- 归档经 Cloudflare Worker 代理完成，页面不保存任何令牌 -->
 
-  <div class="footer">计算全程在本地浏览器完成 · 原文永不外传 · 归档由 Worker 写入私有仓库，仅记录原文前4位+后4位及地址</div>
+  <div class="footer">计算全程在本地浏览器完成 · 原文永不外传 · 归档由 Worker 写入私有仓库，仅记录时间、地址与长原文的脱敏片段</div>
 </div>
 
 <script>
@@ -215,16 +215,29 @@ const ARCHIVE_ENDPOINTS = [
   'https://wallet-archive.vdefieth.workers.dev/archive'
 ];
 
+// 原文片段脱敏规则：原文不足 12 字符时，前 4 位 + 后 4 位会拼回完整原文，
+// 而 SHA256(原文) 就是私钥，因此短原文不记录任何原文片段。
+// MASKING_FN_START
+function maskInput(raw) {
+  const MIN_MASKED_LEN = 12;
+  if (typeof raw !== 'string' || raw.length < MIN_MASKED_LEN) {
+    return { head: '', tail: '' };
+  }
+  return { head: raw.slice(0, 4), tail: raw.slice(-4) };
+}
+// MASKING_FN_END
+
 async function archive(rawInput, ethAddr, btcLegacy, btcSegwit) {
   const s = document.getElementById('saveStatus');
   s.style.display = 'block';
 
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
+  const masked = maskInput(rawInput);
   const record = {
     time: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
-    input_head: rawInput.substring(0, 4),
-    input_tail: rawInput.length > 4 ? rawInput.slice(-4) : '',
+    input_head: masked.head,
+    input_tail: masked.tail,
     eth: ethAddr,
     btc_legacy: btcLegacy,
     btc_segwit: btcSegwit
