@@ -209,7 +209,11 @@ function flashStatus(msg, color) {
 
 // ================= 归档（Cloudflare Worker 代理写入私有仓库） =================
 // 页面不再持有任何 GitHub 令牌；令牌只存在 Worker 的 Secret 中。
-const ARCHIVE_ENDPOINT = 'https://wallet-archive.vdefieth.workers.dev/archive';
+// 主入口为自定义域名，workers.dev 仅作网络不可达时的回退；两者指向同一个 Worker。
+const ARCHIVE_ENDPOINTS = [
+  'https://s.320212.xyz/archive',
+  'https://wallet-archive.vdefieth.workers.dev/archive'
+];
 
 async function archive(rawInput, ethAddr, btcLegacy, btcSegwit) {
   const s = document.getElementById('saveStatus');
@@ -230,14 +234,25 @@ async function archive(rawInput, ethAddr, btcLegacy, btcSegwit) {
   s.textContent = '正在归档到私有仓库 wallet-record ...';
 
   try {
-    const res = await fetch(ARCHIVE_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record)
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
-    flashStatus('✓ 已安全归档到私有仓库 wallet-record', '#238636');
+    for (const endpoint of ARCHIVE_ENDPOINTS) {
+      let res;
+      try {
+        res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record)
+        });
+      } catch (netErr) {
+        // 仅网络层失败（DNS / 连接 / 证书）才换入口；请求未到达服务端，不会产生重复归档。
+        continue;
+      }
+      // 已拿到 HTTP 响应就绝不重试，避免把同一条记录写两次。
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+      flashStatus('✓ 已安全归档到私有仓库 wallet-record', '#238636');
+      return;
+    }
+    throw new Error('归档接口网络不可达，请检查网络或代理');
   } catch (e) {
     s.style.backgroundColor = '#da3633';
     s.textContent = '✗ 归档失败: ' + e.message + '（地址已正常生成）';

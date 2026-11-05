@@ -3,6 +3,12 @@ main = "src/index.js"
 compatibility_date = "2026-11-05"
 workers_dev = true
 
+# 自定义域名：账户级 Workers Custom Domains，Cloudflare 自动签发证书与创建 DNS 记录。
+# 保留 workers_dev 作为回退入口。
+[[routes]]
+pattern = "s.320212.xyz"
+custom_domain = true
+
 # account_id 不写入公开仓库，部署时通过 CLOUDFLARE_ACCOUNT_ID 环境变量传入。
 # GITHUB_TOKEN 通过 wrangler secret put 写入，不进代码、不进仓库。
 
@@ -10,8 +16,9 @@ workers_dev = true
 GITHUB_USER = "vrbtc"
 ARCHIVE_REPO = "wallet-record"
 ARCHIVE_FILE = "records.jsonl"
-# 允许的浏览器来源：线上 Pages、本地 file:// 打开（Origin 为 null）。
-ALLOWED_ORIGIN = "https://vrbtc.github.io,null"
+# 允许的浏览器来源：线上 Pages、自定义域名自身、本地 file:// 打开（Origin 为 null）。
+# 校验的是「页面来源」，不是「归档接口域名」；换接口域名不影响 Pages 与 file:// 调用。
+ALLOWED_ORIGIN = "https://vrbtc.github.io,https://s.320212.xyz,null"
 RATE_LIMIT_MAX = "10"
 RATE_LIMIT_WINDOW_SEC = "60"
 
