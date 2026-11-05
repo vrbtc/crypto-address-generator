@@ -2,7 +2,7 @@ import { validateRecord, checkRateLimit } from './validate.js';
 import { bytesToBase64, base64ToBytes, encodeUtf8, decodeUtf8 } from './encoding.js';
 import { PAGE_URL, GUIDE_HTML } from './guide.js';
 import {
-  VIEWER_COOKIE, RECORDS_PATH, VIEWER_TOKEN_SUFFIX,
+  VIEWER_COOKIE, RECORDS_PATH, VIEWER_TOKEN_SUFFIX, viewerCookie,
   safeEqual, parseCookie, parseJsonl,
   renderRecordsHtml, renderLoginHtml, renderErrorHtml
 } from './records.js';
@@ -92,10 +92,6 @@ function htmlResponse(body, status, extra = {}) {
 async function viewerToken(secret) {
   const bytes = await crypto.subtle.digest('SHA-256', encodeUtf8(secret + VIEWER_TOKEN_SUFFIX));
   return Array.from(new Uint8Array(bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-function viewerCookie(value, maxAge) {
-  return `${VIEWER_COOKIE}=${value}; Path=${RECORDS_PATH}; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`;
 }
 
 async function readRecords(env) {

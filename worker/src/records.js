@@ -16,6 +16,12 @@ export function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ESCAPES[ch]);
 }
 
+// 纯函数：查看凭据 Cookie。SameSite=Lax 是必须的——从 GitHub Pages 点链接过来属于
+// 跨站顶层 GET 导航，Strict 会丢 Cookie 导致刚加的入口直接跳到 401。
+export function viewerCookie(value, maxAge) {
+  return `${VIEWER_COOKIE}=${value}; Path=${RECORDS_PATH}; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+}
+
 // 纯函数：常量时间字符串比较，避免用响应时间猜密钥。
 export function safeEqual(a, b) {
   const x = String(a ?? ''), y = String(b ?? '');

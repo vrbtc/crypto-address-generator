@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   VIEWER_COOKIE, RECORDS_PATH, VIEWER_TOKEN_SUFFIX,
-  escapeHtml, safeEqual, parseCookie, parseJsonl, fragmentLabel,
+  viewerCookie, escapeHtml, safeEqual, parseCookie, parseJsonl, fragmentLabel,
   renderRecordsHtml, renderLoginHtml, renderErrorHtml
 } from '../src/records.js';
 
@@ -33,6 +33,16 @@ test('常量时间比较：相等通过，长度不同/内容不同/空值一律
   assert.equal(VIEWER_COOKIE, 'wallet_view');
   assert.equal(RECORDS_PATH, '/records');
   assert.ok(VIEWER_TOKEN_SUFFIX.includes('viewer'));
+});
+
+test('查看凭据 Cookie：HttpOnly + Secure + Lax，且限定在 /records 路径', () => {
+  const c = viewerCookie('deadbeef', 3600);
+  assert.ok(c.startsWith('wallet_view=deadbeef;'));
+  for (const attr of ['HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/records', 'Max-Age=3600']) {
+    assert.ok(c.includes(attr), `缺少 ${attr}`);
+  }
+  assert.ok(!c.includes('SameSite=Strict'), 'Strict 会让跨站跳转丢失 Cookie');
+  assert.ok(viewerCookie('', 0).includes('Max-Age=0'), '退出登录必须能清除 Cookie');
 });
 
 test('Cookie 解析：正常值、多段、缺失、URL 编码与坏编码', () => {
