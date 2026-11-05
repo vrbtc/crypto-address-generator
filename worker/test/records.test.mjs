@@ -125,11 +125,10 @@ test('记录页渲染：数据来源可配置且被转义，含搜索、刷新�
   assert.ok(html.includes('去生成地址'));
 });
 
-test('生成器页面提供记录页入口，且不写入仓库也不引入外链脚本', () => {
+test('生成器页面不出现记录页入口（入口保持隐藏）', () => {
   const html = fs.readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
-  assert.ok(html.includes('href="https://s.320212.xyz/records"'));
-  assert.ok(html.includes('查看全部生成记录'));
-  assert.ok(html.includes('rel="noopener noreferrer"'));
+  assert.ok(!html.includes('s.320212.xyz/records'), '生成器页面不得出现记录页链接');
+  assert.ok(!html.includes('查看全部生成记录'), '生成器页面不得出现记录页入口文字');
 });
 
 test('未授权页与错误页：完整 HTML、不泄露数据、提示文案可转义', () => {

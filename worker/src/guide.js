@@ -30,8 +30,6 @@ export const GUIDE_HTML = `<!doctype html>
   <p><code>/archive</code> 只接受 POST 请求，由地址生成器页面在后台自动调用。用浏览器地址栏打开属于 GET 请求，所以看不到页面内容。</p>
   <a class="btn" href="${PAGE_URL}">打开地址生成器</a>
   <p>也可以访问本域名根路径 <a href="/">https://s.320212.xyz/</a>，会自动跳转到生成器页面。输入文本生成地址后归档自动完成，无需手动调用接口。</p>
-  <h2>查看全部生成记录</h2>
-  <p><a href="/records">https://s.320212.xyz/records</a> 是可直接打开的记录表格页（时间、原文片段与三个地址）。首次需用专属链接授权一次，之后浏览器会记住，直接打开即可，无需调用接口。</p>
   <h2>接口自检</h2>
   <p>健康检查（可直接打开）：<a href="/health">https://s.320212.xyz/health</a></p>
   <p>手动调用示例（可直接运行，会向私有仓库追加一条测试记录）：</p>
