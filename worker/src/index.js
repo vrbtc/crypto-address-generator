@@ -1,5 +1,6 @@
 import { validateRecord, checkRateLimit } from './validate.js';
 import { bytesToBase64, base64ToBytes, encodeUtf8, decodeUtf8 } from './encoding.js';
+import { PAGE_URL, GUIDE_HTML } from './guide.js';
 
 const MAX_BODY_BYTES = 2048;
 
@@ -113,6 +114,20 @@ export default {
         tokenConfigured: Boolean(env.GITHUB_TOKEN),
         kvConfigured: Boolean(env.RATE_LIMIT_KV)
       }, 200, origin, env);
+    }
+    // 域名根路径直接跳到生成器页面，避免单一域名只提供接口却打不开页面。
+    if (request.method === 'GET' && (path === '/' || path === '')) {
+      return new Response(null, {
+        status: 302,
+        headers: { 'Location': PAGE_URL, 'Cache-Control': 'no-store' }
+      });
+    }
+    // 浏览器地址栏打开 /archive 是 GET；返回说明页而不是冷冰冰的 404 JSON。
+    if (request.method === 'GET' && path === '/archive') {
+      return new Response(GUIDE_HTML, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }
+      });
     }
     if (request.method !== 'POST' || path !== '/archive') {
       return response({ ok: false, error: '仅支持 POST /archive' }, 404, origin, env);
