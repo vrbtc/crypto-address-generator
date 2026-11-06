@@ -18,8 +18,12 @@
   .btn:hover { background: #3fb950; }
   .btn-copy { width: auto; padding: 6px 14px; background: #21262d; border: 1px solid #3b4252; font-size: 0.82rem; font-weight: normal; margin-top: 0; }
   .btn-copy:hover { background: #30363d; }
+  .btn-warn { background: #6e3410; border-color: #9e6a03; }
+  .btn-warn:hover { background: #8a430f; }
   .section { margin-top: 22px; }
   .section h2 { font-size: 1.15rem; border-bottom: 1px solid #30363d; padding-bottom: 6px; }
+  .section-primary h2 { border-bottom: 2px solid #2ea043; color: #7ee787; }
+  .section-secondary h2 { color: #9ca3af; }
   .pk-container { background: #161b22; padding: 10px 12px; border-radius: 6px; font-family: Consolas, monospace; word-break: break-all; margin: 8px 0; font-size: 0.92rem; }
   .pk-gap { margin: 10px 0; padding: 7px 0; border-top: 1px dashed #30363d; border-bottom: 1px dashed #30363d; text-align: center; color: #8b949e; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 0.78rem; }
   .pk-tail-row { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
@@ -27,8 +31,18 @@
   .pk-tail { color: #f85149; font-weight: bold; }
   .addr-box { background: #161b22; padding: 10px 12px; border-radius: 6px; font-family: Consolas, monospace; word-break: break-all; margin: 8px 0; font-size: 0.92rem; color: #58a6ff; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .btn-row .btn-copy { margin-top: 0; }
   .save-status { display: none; margin-top: 18px; padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; }
   .hint { color: #6e7681; font-size: 0.78rem; margin-top: 4px; }
+  .path-tag { display: inline-block; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 1px 7px; font-family: Consolas, monospace; font-size: 0.75rem; color: #8b949e; margin-left: 6px; font-weight: normal; }
+  /* 助记词 12 宫格：第 9-12 词默认只渲染占位符，真实单词不写入 DOM */
+  .mn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+  .word-chip { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; display: flex; gap: 8px; align-items: baseline; font-family: Consolas, monospace; font-size: 0.95rem; }
+  .word-chip.masked { border-color: #6e3410; }
+  .word-num { color: #8b949e; font-size: 0.72rem; min-width: 1.5em; }
+  .word-val { color: #e6edf3; word-break: break-all; }
+  .word-chip.masked .word-val { color: #f85149; letter-spacing: 1px; }
   .edu { color: #b0b8c1; font-size: 0.86rem; line-height: 1.75; }
   .edu h2 { font-size: 1.05rem; }
   .edu h3 { font-size: 0.92rem; color: #e6edf3; margin: 18px 0 6px; }
@@ -43,7 +57,7 @@
 <body>
 <div class="container">
   <h1>🔑 多链地址生成器</h1>
-  <div class="subtitle">输入任意文本生成 ETH / BTC 地址及私钥 · 全部在浏览器本地运算</div>
+  <div class="subtitle">输入任意文本 · 上方生成 BIP-39 标准助记词钱包 · 下方直连哈希单私钥 · 全部在浏览器本地运算</div>
 
   <label>请输入任意文本（密码、短语等）</label>
   <input type="text" id="userInput" placeholder="例如：20261105">
@@ -51,42 +65,90 @@
   <div id="status"></div>
 
   <div id="result" style="display:none">
-    <!-- ETH -->
-    <div class="section">
-      <h2>Ethereum (ETH)</h2>
-      <label>ETH 私钥（主段与末 5 位已隔开，请勿整段复制）</label>
-      <div class="pk-container" id="ethKeyDisplay">
-        <div class="pk-main" id="ethKeyMain"></div>
-        <div class="pk-gap">↓ 以下 5 位与主段隔离，请单独抄录 ↓</div>
-        <div class="pk-tail-row"><span class="pk-tail-label">末 5 位（单独抄录）</span><span class="pk-tail" id="ethKeyTail"></span></div>
-      </div>
-      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('ethKeyMain')">复制 ETH 私钥主段（不含末5位）</button></div>
-      <div class="hint">完整私钥 = 主段 + 末 5 位。两段在页面上不相邻；整段框选复制会一并带上分隔说明文字，不会得到可直接使用的私钥。</div>
-      <label>ETH 地址</label>
-      <div class="addr-box" id="ethAddr"></div>
-      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('ethAddr')">复制 ETH 地址</button></div>
-    </div>
+    <!-- ============ 板块一（置顶）：BIP-39 助记词钱包 ============ -->
+    <div class="section section-primary">
+      <h2>🔐 BIP-39 助记词钱包（标准 12 词）</h2>
+      <div class="hint">SHA-256(原文) 的<b>前 16 字节（128 位熵）</b>经标准 BIP-39 转为 12 个英文单词，再按 BIP-32/44 派生地址。把这 12 个词导入任何标准工具（如 Ian Coleman 离线版、主流硬件/软件钱包），都能恢复出完全相同的地址。</div>
 
-    <!-- BTC -->
-    <div class="section">
-      <h2>Bitcoin (BTC)</h2>
-      <label>BTC 私钥 WIF（主段与末 5 位已隔开，请勿整段复制）</label>
-      <div class="pk-container" id="btcKeyDisplay">
-        <div class="pk-main" id="btcKeyMain"></div>
-        <div class="pk-gap">↓ 以下 5 位与主段隔离，请单独抄录 ↓</div>
-        <div class="pk-tail-row"><span class="pk-tail-label">末 5 位（单独抄录）</span><span class="pk-tail" id="btcKeyTail"></span></div>
+      <label style="margin-top:14px">助记词（最后 4 个词默认隐藏）</label>
+      <div class="mn-grid" id="mnemonicGrid"></div>
+      <div class="btn-row">
+        <button class="btn btn-copy" id="btnRevealWords" onclick="toggleWords()">👁 显示后 4 个词</button>
+        <button class="btn btn-copy" id="btnCopyShown" onclick="copyShownWords()">复制前 8 个词</button>
+        <button class="btn btn-copy btn-warn" id="btnCopyAll" style="display:none" onclick="copyAllWords()">复制全部 12 个词</button>
       </div>
-      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcKeyMain')">复制 BTC 私钥主段（不含末5位）</button></div>
-      <div class="hint">WIF 主段与末 5 位同样隔离，整段框选复制不会得到完整 WIF。</div>
-      <label>BTC 传统地址 (Legacy)</label>
-      <div class="addr-box" id="btcLegacy"></div>
-      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcLegacy')">复制 BTC 传统地址</button></div>
-      <label>BTC SegWit 地址</label>
-      <div class="addr-box" id="btcSegwit"></div>
-      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcSegwit')">复制 BTC SegWit 地址</button></div>
+      <div class="hint">默认视图与剪贴板都不含第 9-12 词；点「显示后 4 个词」后才会写入页面，且「复制全部」仅在显示后可用。<b>恢复钱包必须凑齐全部 12 个词</b>，请抄在纸上、离线保管。</div>
+
+      <label style="margin-top:16px">ETH 地址<span class="path-tag">m/44'/60'/0'/0/0</span></label>
+      <div class="addr-box" id="mEthAddr"></div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('mEthAddr')">复制 ETH 地址</button></div>
+
+      <label>BTC 传统地址 (Legacy)<span class="path-tag">m/44'/0'/0'/0/0</span></label>
+      <div class="addr-box" id="mBtcLegacy"></div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('mBtcLegacy')">复制 BTC 传统地址</button></div>
+
+      <label>BTC SegWit 地址<span class="path-tag">m/84'/0'/0'/0/0</span></label>
+      <div class="addr-box" id="mBtcSegwit"></div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('mBtcSegwit')">复制 BTC SegWit 地址</button></div>
+
+      <label style="margin-top:16px">ETH 私钥（由助记词派生，主段与末 5 位已隔开，请勿整段复制）</label>
+      <div class="pk-container" id="mEthKeyDisplay">
+        <div class="pk-main" id="mEthKeyMain"></div>
+        <div class="pk-gap">↓ 以下 5 位与主段隔离，请单独抄录 ↓</div>
+        <div class="pk-tail-row"><span class="pk-tail-label">末 5 位（单独抄录）</span><span class="pk-tail" id="mEthKeyTail"></span></div>
+      </div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('mEthKeyMain')">复制 ETH 私钥主段（不含末5位）</button></div>
+
+      <label>BTC 私钥 WIF（由助记词派生，主段与末 5 位已隔开，请勿整段复制）</label>
+      <div class="pk-container" id="mBtcKeyDisplay">
+        <div class="pk-main" id="mBtcKeyMain"></div>
+        <div class="pk-gap">↓ 以下 5 位与主段隔离，请单独抄录 ↓</div>
+        <div class="pk-tail-row"><span class="pk-tail-label">末 5 位（单独抄录）</span><span class="pk-tail" id="mBtcKeyTail"></span></div>
+      </div>
+      <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('mBtcKeyMain')">复制 BTC 私钥主段（不含末5位）</button></div>
+      <div class="hint">有了 12 个助记词即可在任何钱包重新推出以上私钥与地址；私钥仅作为不依赖钱包软件时的备用抄录。</div>
     </div>
 
     <div id="saveStatus" class="save-status"></div>
+
+    <!-- ============ 板块二（下移）：直连哈希单私钥 ============ -->
+    <div class="section section-secondary">
+      <h2>⚡ 直连哈希模式（单私钥 · 进阶）</h2>
+      <div class="hint">SHA-256(原文) 整体作为私钥，独立于上方助记词钱包，两者地址互不相同、互不兼容；<b>本板块结果不写入归档</b>。适合已了解风险、只需要"一个原文对应一把单私钥"的场景。</div>
+
+      <!-- ETH -->
+      <div class="section" style="margin-top:12px">
+        <label>ETH 私钥（主段与末 5 位已隔开，请勿整段复制）</label>
+        <div class="pk-container" id="ethKeyDisplay">
+          <div class="pk-main" id="ethKeyMain"></div>
+          <div class="pk-gap">↓ 以下 5 位与主段隔离，请单独抄录 ↓</div>
+          <div class="pk-tail-row"><span class="pk-tail-label">末 5 位（单独抄录）</span><span class="pk-tail" id="ethKeyTail"></span></div>
+        </div>
+        <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('ethKeyMain')">复制 ETH 私钥主段（不含末5位）</button></div>
+        <div class="hint">完整私钥 = 主段 + 末 5 位。两段在页面上不相邻；整段框选复制会一并带上分隔说明文字，不会得到可直接使用的私钥。</div>
+        <label>ETH 地址</label>
+        <div class="addr-box" id="ethAddr"></div>
+        <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('ethAddr')">复制 ETH 地址</button></div>
+      </div>
+
+      <!-- BTC -->
+      <div class="section" style="margin-top:12px">
+        <label>BTC 私钥 WIF（主段与末 5 位已隔开，请勿整段复制）</label>
+        <div class="pk-container" id="btcKeyDisplay">
+          <div class="pk-main" id="btcKeyMain"></div>
+          <div class="pk-gap">↓ 以下 5 位与主段隔离，请单独抄录 ↓</div>
+          <div class="pk-tail-row"><span class="pk-tail-label">末 5 位（单独抄录）</span><span class="pk-tail" id="btcKeyTail"></span></div>
+        </div>
+        <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcKeyMain')">复制 BTC 私钥主段（不含末5位）</button></div>
+        <div class="hint">WIF 主段与末 5 位同样隔离，整段框选复制不会得到完整 WIF。</div>
+        <label>BTC 传统地址 (Legacy)</label>
+        <div class="addr-box" id="btcLegacy"></div>
+        <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcLegacy')">复制 BTC 传统地址</button></div>
+        <label>BTC SegWit 地址</label>
+        <div class="addr-box" id="btcSegwit"></div>
+        <div class="row"><span style="flex:1"></span><button class="btn btn-copy" onclick="copyText('btcSegwit')">复制 BTC SegWit 地址</button></div>
+      </div>
+    </div>
   </div>
 
   <!-- 归档经 Cloudflare Worker 代理完成，页面不保存任何令牌 -->
@@ -95,10 +157,23 @@
   <div class="section edu">
     <h2>📚 密码学原理科普</h2>
 
+    <h3>助记词模式是怎么算出来的（BIP-39 / BIP-32）</h3>
+    <ol>
+      <li><b>原文 → SHA-256 → 熵</b>：先对原文做 SHA-256，得到 32 字节哈希，取<b>前 16 字节（128 位）作为熵</b>。</li>
+      <li><b>熵 → 12 个助记词</b>：把 128 位熵切成 12 组，再对熵整体做一次 SHA-256 取前 4 位作<b>校验和</b>拼在末尾，共 132 位，按每 11 位查一次 BIP-39 英文词表（2048 个单词），得到 12 个词。校验和能检测抄错单词——错一个词，钱包软件会直接拒绝导入。</li>
+      <li><b>助记词 → 种子</b>：12 个词经 PBKDF2-HMAC-SHA512 迭代 2048 次生成 512 位种子。这一步是标准协议，词序与校验由协议保证，因此任何遵循 BIP-39 的工具（Ian Coleman、主流钱包）对同样的 12 个词都推出同一个种子。</li>
+      <li><b>种子 → 多链地址</b>：种子经 HMAC-SHA512 生成 BIP-32 主密钥，再按 BIP-44 标准路径逐级派生：ETH 走 m/44'/60'/0'/0/0，BTC 传统地址走 m/44'/0'/0'/0/0，BTC SegWit 走 m/84'/0'/0'/0/0。每条路径都是公开协议，跨钱包可复现。</li>
+    </ol>
+
+    <h3>助记词模式与直连哈希模式的区别</h3>
+    <ul>
+      <li><b>助记词模式（推荐）</b>：12 个词就是钱包本体。换手机、换钱包软件，只要词在，资产就在；这也是硬件钱包、MetaMask 等的主流备份方式。熵被截成 128 位，但仍有 2¹²⁸ ≈ 3.4×10³⁸ 种组合，暴力穷举同样不可行。</li>
+      <li><b>直连哈希模式（进阶）</b>：SHA-256(原文) 整体就是一把孤立的私钥，没有助记词、无法在标准钱包里用词组恢复，只能整段备份 64 位十六进制私钥。两者地址互不相同，请勿混用。</li>
+    </ul>
+
     <h3>地址是怎么算出来的</h3>
     <p>整个流程是一条纯数学推导链，每一步都是公开的密码学算法：</p>
     <ol>
-      <li><b>文本 → SHA-256</b>：你输入的文本经过 SHA-256 哈希运算，得到一个 256 位的二进制数（页面上显示的 64 位十六进制字符串）。<b>这个数就是私钥本身</b>。</li>
       <li><b>私钥 → 公钥</b>：私钥在 secp256k1 椭圆曲线上做乘法，得到公钥。正向计算瞬间完成，反向从公钥推私钥在数学上不可行（椭圆曲线离散对数难题）。</li>
       <li><b>公钥 → ETH 地址</b>：对公钥做 Keccak-256 哈希，取最后 20 字节，就是 0x 开头的以太坊地址。</li>
       <li><b>公钥 → BTC 地址</b>：对公钥做 SHA-256 再做 RIPEMD-160 双重哈希，加上校验位后用 Base58 编码得到传统地址（1 开头）；SegWit 地址（bc1 开头）则用 Bech32 编码，同一条公钥可以推出两种格式的比特币地址。</li>
@@ -113,7 +188,7 @@
     </ul>
 
     <h3>安全性取决于你输入的文本</h3>
-    <p>数学上最薄弱的一环不是算法，是<b>原文本身</b>。"20261105" 这类 8 位纯数字只有 10⁸ 种可能，攻击者拿到你的地址后可以离线把所有短数字组合各算一遍地址来比对，几分钟就能穷举完。<b>请使用足够长、足够杂乱的文本</b>（长句子 + 数字 + 符号，例如一句只有你自己知道的完整短语），长度和杂乱度直接决定地址的安全强度。</p>
+    <p>数学上最薄弱的一环不是算法，是<b>原文本身</b>。"20261105" 这类 8 位纯数字只有 10⁸ 种可能，攻击者拿到你的地址后可以离线把所有短数字组合各算一遍地址来比对，几分钟就能穷举完。<b>请使用足够长、足够杂乱的文本</b>（长句子 + 数字 + 符号，例如一句只有你自己知道的完整短语），长度和杂乱度直接决定地址的安全强度。助记词模式下攻击者仍从原文入手穷举 SHA-256，12 个词本身是均匀随机的，不额外降低强度。</p>
   </div>
 
   <div class="footer">
@@ -123,6 +198,8 @@
 
 <script>
 // ================= Bech32 (BIP173 参考实现) =================
+// BECH32_BLOCK_START
+// （标记块供单测提取，与助记词派生函数联测）
 const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
 const GENERATOR = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
 function polymod(values) {
@@ -177,41 +254,147 @@ function segwitAddrEncode(hrp, witnessVersion, witnessProgram) {
   const data = [witnessVersion].concat(convertBits(witnessProgram, 8, 5, true));
   return bech32Encode(hrp, data);
 }
+// BECH32_BLOCK_END
+
+// ================= BIP-39 / BIP-32 助记词派生（纯函数，无 DOM，供单测提取联测） =================
+// 输入 16 字节熵，走标准 BIP-39 英文词表 + BIP-32/44 派生，与 Ian Coleman / 主流钱包完全一致。
+// MNEMONIC_DERIVE_FN_START
+async function deriveMnemonicCore(entropyBytes, E) {
+  // BIP-39：128 位熵 → 12 个英文单词（含 4 位校验和，词表为标准英文 2048 词）
+  const phrase = E.utils.entropyToMnemonic(E.utils.arrayify(entropyBytes));
+  const words = phrase.split(' ');
+  // BIP-39 种子：PBKDF2-HMAC-SHA512，2048 轮，盐 = "mnemonic" + 口令（此处口令为空）
+  const seed = E.utils.mnemonicToSeed(phrase);
+  // BIP-32/44 标准派生路径，与主流钱包默认一致
+  const ethWallet = E.Wallet.fromMnemonic(phrase, "m/44'/60'/0'/0/0");
+  const node44 = E.utils.HDNode.fromSeed(seed).derivePath("m/44'/0'/0'/0/0");
+  const node84 = E.utils.HDNode.fromSeed(seed).derivePath("m/84'/0'/0'/0/0");
+
+  // BTC Legacy (P2PKH)：压缩公钥 → HASH160 → Base58Check
+  // 注：ethers v5 的 HDNode.publicKey / privateKey 均为 0x 前缀 hex，统一去前缀后再拼接
+  const pub44 = node44.publicKey.replace(/^0x/, '');
+  const priv44 = node44.privateKey.replace(/^0x/, '');
+  const pub84 = node84.publicKey.replace(/^0x/, '');
+  const hash160 = E.utils.ripemd160(E.utils.sha256('0x' + pub44));
+  const payload = '00' + hash160.substring(2);
+  const checksum = E.utils.sha256(E.utils.sha256('0x' + payload)).substring(2, 10);
+  const btcLegacy = E.utils.base58.encode('0x' + payload + checksum);
+
+  // BTC SegWit (P2WPKH, bech32)：m/84' 路径公钥的 HASH160 作为见证程序
+  const btcSegwit = segwitAddrEncode('bc', 0, E.utils.arrayify(
+    E.utils.ripemd160(E.utils.sha256('0x' + pub84))));
+
+  // BTC WIF 私钥（压缩格式: 0x80 + key + 0x01）
+  const wifPayload = '80' + priv44 + '01';
+  const wifChecksum = E.utils.sha256(E.utils.sha256('0x' + wifPayload)).substring(2, 10);
+  const btcWif = E.utils.base58.encode('0x' + wifPayload + wifChecksum);
+
+  return {
+    phrase: phrase,
+    words: words,
+    ethAddress: ethWallet.address,
+    ethPrivateKey: ethWallet.privateKey.substring(2),
+    btcLegacy: btcLegacy,
+    btcSegwit: btcSegwit,
+    btcWif: btcWif
+  };
+}
+// MNEMONIC_DERIVE_FN_END
 
 // ================= 生成逻辑 =================
+// 助记词真实单词只保存在这个变量里（JS 内存），默认不写入 DOM、不进剪贴板。
+let currentWords = null;
+let wordsRevealed = false;
+
+// 助记词掩码规则：最后 4 个词（第 9-12 词）默认隐藏。纯函数，供单测直接提取验证。
+// MNEMONIC_MASK_FN_START
+function maskMnemonic(words) {
+  const HIDDEN_COUNT = 4;
+  if (!Array.isArray(words)) return { shown: [], hiddenCount: 0 };
+  if (words.length <= HIDDEN_COUNT) return { shown: [], hiddenCount: words.length };
+  return { shown: words.slice(0, words.length - HIDDEN_COUNT), hiddenCount: HIDDEN_COUNT };
+}
+// MNEMONIC_MASK_FN_END
+
+function renderWords() {
+  const grid = document.getElementById('mnemonicGrid');
+  grid.textContent = '';
+  if (!currentWords) return;
+  const { hiddenCount } = maskMnemonic(currentWords);
+  const total = currentWords.length;
+  for (let i = 0; i < total; i++) {
+    const chip = document.createElement('div');
+    const isMasked = i >= total - hiddenCount && !wordsRevealed;
+    chip.className = 'word-chip' + (isMasked ? ' masked' : '');
+    const num = document.createElement('span');
+    num.className = 'word-num';
+    num.textContent = String(i + 1);
+    const val = document.createElement('span');
+    val.className = 'word-val';
+    // 未揭示时第 9-12 词只写占位符，真实单词绝不进入 DOM
+    val.textContent = isMasked ? '🔒 隐藏' : currentWords[i];
+    chip.appendChild(num);
+    chip.appendChild(val);
+    grid.appendChild(chip);
+  }
+  document.getElementById('btnRevealWords').textContent =
+    wordsRevealed ? '🙈 重新隐藏后 4 个词' : '👁 显示后 4 个词';
+  // 复制全部 12 词的入口只在明文显示后出现，防止一键复制半隐藏的助记词
+  document.getElementById('btnCopyAll').style.display = wordsRevealed ? '' : 'none';
+}
+
+function toggleWords() {
+  if (!currentWords) return;
+  wordsRevealed = !wordsRevealed;
+  renderWords();
+}
+
 async function generateWallet() {
   const rawInput = document.getElementById('userInput').value;
   if (!rawInput) { alert('请输入文本！'); return; }
 
   try {
-    // 1. SHA-256(UTF-8(输入)) 作为私钥
+    // 1. SHA-256(UTF-8(输入))
     const utf8Bytes = new TextEncoder().encode(rawInput);
     const hashBuf = await crypto.subtle.digest('SHA-256', utf8Bytes);
-    const hashHex = '0x' + Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    const privKey = hashHex; // 32 字节
+    const hashBytes = new Uint8Array(hashBuf);
+    const hashHex = '0x' + Array.from(hashBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    const privKey = hashHex; // 32 字节，直连哈希模式的私钥
 
-    // 2. ETH 地址 (ethers, EIP-55 校验和格式)
+    // 2. 直连哈希模式：ETH 地址 (ethers, EIP-55 校验和格式)
     const wallet = new ethers.Wallet(privKey);
     const ethAddr = wallet.address;
 
-    // 3. BTC Legacy (压缩公钥 → Hash160 → Base58Check)
+    // 3. 直连哈希模式：BTC Legacy (压缩公钥 → Hash160 → Base58Check)
     const pubKeyC = ethers.utils.computePublicKey(privKey, true); // 33 字节压缩公钥
     const hash160 = ethers.utils.ripemd160(ethers.utils.sha256(pubKeyC));
     const payload = '00' + hash160.substring(2);
     const checksum = ethers.utils.sha256(ethers.utils.sha256('0x' + payload)).substring(2, 10);
     const btcLegacy = ethers.utils.base58.encode('0x' + payload + checksum);
 
-    // 4. BTC SegWit (P2WPKH, bech32)
+    // 4. 直连哈希模式：BTC SegWit (P2WPKH, bech32)
     const progHex = hash160.substring(2);
     const progBytes = new Uint8Array(progHex.match(/.{2}/g).map(h => parseInt(h, 16)));
     const btcSegwit = segwitAddrEncode('bc', 0, progBytes);
 
-    // 5. BTC WIF 私钥 (压缩格式: 0x80 + key + 0x01)
+    // 5. 直连哈希模式：BTC WIF 私钥 (压缩格式: 0x80 + key + 0x01)
     const wifPayload = '80' + privKey.substring(2) + '01';
     const wifChecksum = ethers.utils.sha256(ethers.utils.sha256('0x' + wifPayload)).substring(2, 10);
     const wif = ethers.utils.base58.encode('0x' + wifPayload + wifChecksum);
 
-    // 展示私钥：主段与末 5 位分别写入互相隔离的元素，避免整段复制带走完整私钥
+    // 6. BIP-39 助记词模式：SHA-256 前 16 字节（128 位熵）→ 12 词 → 标准派生
+    const entropyBytes = hashBytes.slice(0, 16);
+    const mw = await deriveMnemonicCore(entropyBytes, ethers);
+    currentWords = mw.words;
+    wordsRevealed = false; // 每次生成回到默认保护态
+    renderWords();
+    showSplitKey('mEthKeyMain', 'mEthKeyTail', mw.ethPrivateKey);
+    showSplitKey('mBtcKeyMain', 'mBtcKeyTail', mw.btcWif);
+    document.getElementById('mEthAddr').textContent = mw.ethAddress;
+    document.getElementById('mBtcLegacy').textContent = mw.btcLegacy;
+    document.getElementById('mBtcSegwit').textContent = mw.btcSegwit;
+
+    // 直连哈希板块展示：主段与末 5 位分别写入互相隔离的元素，避免整段复制带走完整私钥
     showSplitKey('ethKeyMain', 'ethKeyTail', hashHex.substring(2));
     showSplitKey('btcKeyMain', 'btcKeyTail', wif);
     document.getElementById('ethAddr').textContent = ethAddr;
@@ -220,8 +403,8 @@ async function generateWallet() {
     document.getElementById('result').style.display = 'block';
     document.getElementById('status').textContent = '';
 
-    // 自动归档（脱敏：原文前4位 + 后4位，无任何私钥）
-    await archive(rawInput, ethAddr, btcLegacy, btcSegwit);
+    // 自动归档助记词模式派生的地址（脱敏：原文前4位 + 后4位，无任何私钥与助记词）
+    await archive(rawInput, mw.ethAddress, mw.btcLegacy, mw.btcSegwit, 'mnemonic');
   } catch (e) {
     document.getElementById('status').textContent = '计算出错：' + e.message;
   }
@@ -243,18 +426,33 @@ function showSplitKey(mainId, tailId, fullKey) {
   document.getElementById(tailId).textContent = parts.tail;
 }
 
-async function copyText(id) {
-  const text = document.getElementById(id).textContent;
+async function copyValue(text, msg) {
   try {
     await navigator.clipboard.writeText(text);
-    flashStatus('✓ 已复制（不含尾 5 位）', '#238636');
+    flashStatus(msg, '#238636');
   } catch (e) {
     // 兼容非 HTTPS/旧浏览器
     const ta = document.createElement('textarea');
     ta.value = text; document.body.appendChild(ta); ta.select();
     document.execCommand('copy'); document.body.removeChild(ta);
-    flashStatus('✓ 已复制（不含尾 5 位）', '#238636');
+    flashStatus(msg, '#238636');
   }
+}
+
+async function copyText(id) {
+  await copyValue(document.getElementById(id).textContent, '✓ 已复制（不含尾 5 位）');
+}
+
+async function copyShownWords() {
+  if (!currentWords) return;
+  const { shown } = maskMnemonic(currentWords);
+  if (!shown.length) return;
+  await copyValue(shown.join(' '), '✓ 已复制前 ' + shown.length + ' 个词（后 4 个词不在其中）');
+}
+
+async function copyAllWords() {
+  if (!currentWords || !wordsRevealed) return;
+  await copyValue(currentWords.join(' '), '✓ 全部 12 个词已复制，请尽快离线导入并清空剪贴板');
 }
 
 function flashStatus(msg, color) {
@@ -273,7 +471,7 @@ const ARCHIVE_ENDPOINTS = [
 ];
 
 // 原文片段脱敏规则：原文不足 12 字符时，前 4 位 + 后 4 位会拼回完整原文，
-// 而 SHA256(原文) 就是私钥，因此短原文不记录任何原文片段。
+// 而 SHA256(原文) 就是直连模式的私钥，因此短原文不记录任何原文片段。
 // MASKING_FN_START
 function maskInput(raw) {
   const MIN_MASKED_LEN = 12;
@@ -284,14 +482,24 @@ function maskInput(raw) {
 }
 // MASKING_FN_END
 
-async function archive(rawInput, ethAddr, btcLegacy, btcSegwit) {
+async function postArchive(endpoint, record) {
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(record)
+  });
+  const j = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, error: j.error || '' };
+}
+
+async function archive(rawInput, ethAddr, btcLegacy, btcSegwit, mode) {
   const s = document.getElementById('saveStatus');
   s.style.display = 'block';
 
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
   const masked = maskInput(rawInput);
-  const record = {
+  const base = {
     time: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
     input_head: masked.head,
     input_tail: masked.tail,
@@ -299,26 +507,32 @@ async function archive(rawInput, ethAddr, btcLegacy, btcSegwit) {
     btc_legacy: btcLegacy,
     btc_segwit: btcSegwit
   };
+  // mode 标记地址来源（mnemonic = BIP-39 派生），绝不归档助记词本身
+  const record = mode ? { ...base, mode: mode } : base;
 
   s.style.backgroundColor = '#9e6a03';
   s.textContent = '正在归档到私有仓库 wallet-record ...';
 
   try {
     for (const endpoint of ARCHIVE_ENDPOINTS) {
-      let res;
+      let result;
       try {
-        res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(record)
-        });
+        result = await postArchive(endpoint, record);
       } catch (netErr) {
         // 仅网络层失败（DNS / 连接 / 证书）才换入口；请求未到达服务端，不会产生重复归档。
         continue;
       }
-      // 已拿到 HTTP 响应就绝不重试，避免把同一条记录写两次。
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
+      // 已拿到 HTTP 响应就绝不换端点重试同一条记录，避免写两次。
+      if (!result.ok) {
+        // 兼容尚未升级的旧版 Worker：白名单不认识 mode 时，降级为不带 mode 再投一次。
+        if (mode && result.status === 400 && /字段集合/.test(result.error)) {
+          const retry = await postArchive(endpoint, base);
+          if (!retry.ok) throw new Error(retry.error || ('HTTP ' + retry.status));
+          flashStatus('✓ 已安全归档到私有仓库 wallet-record', '#238636');
+          return;
+        }
+        throw new Error(result.error || ('HTTP ' + result.status));
+      }
       flashStatus('✓ 已安全归档到私有仓库 wallet-record', '#238636');
       return;
     }

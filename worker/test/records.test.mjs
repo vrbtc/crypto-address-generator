@@ -87,6 +87,25 @@ test('原文片段：短原文留空，长原文只显示头尾，绝不拼回�
   assert.equal(fragmentLabel('', '1105'), '后4位 1105');
 });
 
+test('parseJsonl：mode 字段保留用于展示，异常 mode 不展示', () => {
+  const out = parseJsonl(JSON.stringify(row({ mode: 'mnemonic' })));
+  assert.equal(out.records[0].mode, 'mnemonic');
+
+  const noMode = parseJsonl(JSON.stringify(row()));
+  assert.ok(!('mode' in noMode.records[0]));
+
+  const html = renderRecordsHtml([row({ mode: 'mnemonic' })]);
+  assert.ok(html.includes('mode-badge'), '缺少徽标样式');
+  assert.ok(html.includes('助记词'), '缺少徽标文字');
+  assert.ok(html.includes('2026-11-05 10:01:39'), '时间仍需完整展示');
+  const plain = renderRecordsHtml([row()]);
+  assert.ok(!plain.includes('mode-badge">'), '无 mode 记录不得渲染徽标');
+
+  const fake = renderRecordsHtml([row({ mode: '<b>x</b>' })]);
+  assert.ok(!fake.includes('mode-badge">助记词'), '未知 mode 不得渲染成助记词徽标');
+  assert.ok(!fake.includes('<b>x</b>') && !fake.includes('&lt;b&gt;x'), '未知 mode 值不得出现在页面');
+});
+
 test('记录页渲染：六个字段全部可见，条数与最新时间正确', () => {
   const html = renderRecordsHtml([row(), row({ time: '2026-11-05 09:00:00' })], { skipped: 2 });
   for (const val of ['2026-11-05 10:01:39', '2026-11-05 09:00:00',

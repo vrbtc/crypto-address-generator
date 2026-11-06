@@ -45,6 +45,7 @@ export function parseCookie(header, name) {
 }
 
 // 纯函数：解析 JSONL。损坏行、非对象行一律跳过并计数，不让单行坏数据毁掉整页。
+// mode 为可选展示字段（mnemonic = 助记词模式派生地址），缺失或非字符串一律不展示。
 export function parseJsonl(text) {
   const records = [];
   let skipped = 0;
@@ -62,6 +63,9 @@ export function parseJsonl(text) {
         try { s = JSON.stringify(v); } catch (e) { s = String(v); }
       }
       row[field] = s.length > MAX_CELL_CHARS ? s.slice(0, MAX_CELL_CHARS) + '…' : s;
+    }
+    if (typeof value.mode === 'string') {
+      row.mode = value.mode.length > 20 ? value.mode.slice(0, 20) : value.mode;
     }
     records.push(row);
   }
@@ -82,6 +86,12 @@ function cellCode(value, extraClass = '') {
   return `<code class="addr ${extraClass}" title="点击复制">${escapeHtml(value) || '—'}</code>`;
 }
 
+// 纯函数：mode 徽标。只认得已知值，未知值不渲染，防止伪造内容混进页面文案。
+export function modeBadge(mode) {
+  if (mode === 'mnemonic') return '<span class="mode-badge">助记词</span>';
+  return '';
+}
+
 // 纯函数：渲染完整 HTML 文档。rows 已按展示顺序排好（最新在前）。
 export function renderRecordsHtml(rows, meta = {}) {
   const total = rows.length;
@@ -93,7 +103,7 @@ export function renderRecordsHtml(rows, meta = {}) {
   const body = rows.map((r, i) => `
       <tr>
         <td class="num">${total - i}</td>
-        <td class="time">${escapeHtml(r.time) || '—'}</td>
+        <td class="time">${escapeHtml(r.time) || '—'}${modeBadge(r.mode)}</td>
         <td class="frag"><span class="frag-txt">${escapeHtml(fragmentLabel(r.input_head, r.input_tail))}</span></td>
         <td>${cellCode(r.eth)}</td>
         <td>${cellCode(r.btc_legacy)}</td>
@@ -137,6 +147,10 @@ export function renderRecordsHtml(rows, meta = {}) {
   tr:hover td { background: #f6f8fa; }
   .num { color: #8c959f; width: 46px; }
   .time { white-space: nowrap; font-family: Consolas, "Courier New", monospace; }
+  .mode-badge { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 10px;
+                background: #ddf4ff; border: 1px solid #54aeff; color: #0969da;
+                font: 600 0.72rem -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+                vertical-align: 1px; }
   .frag-txt { color: #57606a; white-space: nowrap; }
   code.addr { font-family: Consolas, "Courier New", monospace; word-break: break-all;
               cursor: pointer; color: #0969da; }
@@ -184,7 +198,7 @@ export function renderRecordsHtml(rows, meta = {}) {
     <b>关于「原文」：</b>归档里<b>没有整段原文</b>，只有长原文的前 4 位与后 4 位；短原文连片段都不记。
     原因：本项目里 SHA256(原文) 就是私钥，原文一旦写进任何可打开的网页，等于私钥落盘。
     <ul>
-      <li>页面与私有仓库都<b>不含</b>原文、SHA256 私钥、WIF 私钥；私钥只在生成时短暂显示于浏览器。</li>
+      <li>页面与私有仓库都<b>不含</b>原文、SHA256 私钥、WIF 私钥、BIP-39 助记词；私钥与助记词只在生成时短暂显示于浏览器，带「助记词」徽标的记录只保存 BIP-39 派生出的地址。</li>
       <li>归档接口地址公开，来源头可伪造，记录中可能混入他人提交的伪造条目，请勿把本表当作可信账本。</li>
       <li>点击任意地址可复制；本页需要专属链接授权，未授权访问看不到任何记录。</li>
     </ul>

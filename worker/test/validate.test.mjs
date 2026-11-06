@@ -19,6 +19,29 @@ test('合法基准记录通过，且只保留白名单字段', () => {
   const r = validateRecord(GOOD);
   assert.equal(r.ok, true);
   assert.deepEqual(r.record, GOOD);
+  assert.ok(!('mode' in r.record), '不传 mode 时输出记录不得新增字段');
+});
+
+test('mode 字段：mnemonic / raw 允许并保留，其他值拒绝', () => {
+  const mn = clone(GOOD); mn.mode = 'mnemonic';
+  const r1 = validateRecord(mn);
+  assert.equal(r1.ok, true);
+  assert.equal(r1.record.mode, 'mnemonic');
+  assert.equal(Object.keys(r1.record).length, 7);
+
+  const raw = clone(GOOD); raw.mode = 'raw';
+  const r2 = validateRecord(raw);
+  assert.equal(r2.ok, true);
+  assert.equal(r2.record.mode, 'raw');
+
+  for (const bad of ['seed', 'MNEMONIC', 'mnemonic ', 'privkey', '']) {
+    const b = clone(GOOD); b.mode = bad;
+    const r = validateRecord(b);
+    assert.equal(r.ok, false, `mode=${bad} 必须被拒绝`);
+    if (bad) assert.match(r.reason, /mode/);
+  }
+  const num = clone(GOOD); num.mode = 123;
+  assert.equal(validateRecord(num).ok, false);
 });
 
 test('多余字段一律拒绝，尤其私钥类字段', () => {

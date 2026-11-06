@@ -1,7 +1,11 @@
-// 归档记录字段白名单。多一个字段都拒绝，防止把私钥塞进归档文件。
+// 归档记录字段白名单。白名单之外的任何字段都拒绝，防止把私钥塞进归档文件。
+// mode 是可选字段：'mnemonic' = BIP-39 助记词模式派生的地址，'raw' = 直连哈希模式。
+// 无论如何，归档里只允许出现地址，绝不允许出现私钥 / WIF / 助记词。
 export const RECORD_FIELDS = Object.freeze([
   'time', 'input_head', 'input_tail', 'eth', 'btc_legacy', 'btc_segwit'
 ]);
+const OPTIONAL_MODE = 'mode';
+const RE_MODE = /^(mnemonic|raw)$/;
 
 const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
 const RE_TIME = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/;
@@ -22,14 +26,20 @@ export function validateRecord(value) {
   }
 
   const keys = Object.keys(value).sort();
-  const expected = [...RECORD_FIELDS].sort();
+  const hasMode = keys.includes(OPTIONAL_MODE);
+  // 字段集合只允许两种：6 个基础字段，或 6 个基础字段 + mode。其余一律拒绝。
+  const expected = (hasMode ? [...RECORD_FIELDS, OPTIONAL_MODE] : [...RECORD_FIELDS]).sort();
   if (keys.length !== expected.length || keys.some((k, i) => k !== expected[i])) {
     return fail('字段集合不匹配，拒绝任何额外字段');
   }
 
-  for (const field of RECORD_FIELDS) {
+  const checkedFields = hasMode ? [...RECORD_FIELDS, OPTIONAL_MODE] : [...RECORD_FIELDS];
+  for (const field of checkedFields) {
     if (typeof value[field] !== 'string') return fail(field + ' 必须是字符串');
     if (RE_CONTROL.test(value[field])) return fail(field + ' 含控制字符');
+  }
+  if (hasMode && !RE_MODE.test(value.mode)) {
+    return fail('mode 只允许 mnemonic 或 raw');
   }
 
   if (new TextEncoder().encode(JSON.stringify(value)).length > MAX_RECORD_BYTES) {
@@ -61,7 +71,9 @@ export function validateRecord(value) {
       input_tail: value.input_tail,
       eth: value.eth,
       btc_legacy: value.btc_legacy,
-      btc_segwit: value.btc_segwit
+      btc_segwit: value.btc_segwit,
+      // 不传 mode 的旧客户端保持原样，不加多余字段。
+      ...(hasMode ? { mode: value.mode } : {})
     }
   };
 }
